@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -74,7 +75,6 @@ public class MainActivity extends AppCompatActivity {
         builder.setView(dialogView);
 
         final EditText taskNameInput = dialogView.findViewById(R.id.editTextTaskName);
-        RadioGroup radioGroup = dialogView.findViewById(R.id.radioGroup);
         RadioButton radioToday = dialogView.findViewById(R.id.radioToday);
         RadioButton radioTomorrow = dialogView.findViewById(R.id.radioTomorrow);
         Button addTaskButton = dialogView.findViewById(R.id.btnAddTaskDialog);
@@ -125,47 +125,71 @@ public class MainActivity extends AppCompatActivity {
     private void updateTaskViews() {
         todayTaskList.removeAllViews();
         tomorrowTaskList.removeAllViews();
+
         for (Task task : todayTasks) {
             if (!hideCompleted || !task.isCompleted()) {
-                CheckBox checkBox = createTaskCheckBox(task);
-                todayTaskList.addView(checkBox);
+                LinearLayout taskLayout = createTaskLayout(task, true);
+                todayTaskList.addView(taskLayout);
             }
         }
 
         for (Task task : tomorrowTasks) {
-            TextView taskView = createTaskTextView(task);
-            tomorrowTaskList.addView(taskView);
+            if (!hideCompleted || !task.isCompleted()) {
+                LinearLayout taskLayout = createTaskLayout(task, false);
+                tomorrowTaskList.addView(taskLayout);
+            }
         }
     }
-    private CheckBox createTaskCheckBox(Task task) {
+    private LinearLayout createTaskLayout(Task task, boolean isToday) {
+        LinearLayout taskLayout = new LinearLayout(this);
+        taskLayout.setOrientation(LinearLayout.HORIZONTAL);
+
         CheckBox checkBox = new CheckBox(this);
         checkBox.setText(task.getName());
         checkBox.setChecked(task.isCompleted());
-        checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> task.setCompleted(isChecked));
-        return checkBox;
-    }
-    private TextView createTaskTextView(Task task) {
-        TextView textView = new TextView(this);
-        textView.setText(task.getName());
-        textView.setTextSize(18);
-        textView.setPadding(0, 10, 0, 10);
-        textView.setOnClickListener(v -> showEditDeleteDialog(task));
-        return textView;
-    }
-    private void showEditDeleteDialog(Task task) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Edit or Delete Task");
-        builder.setPositiveButton("Edit", (dialog, which) -> {
-            showEditTaskDialog(task);
+        checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            task.setCompleted(isChecked);
+            dbHelper.updateTask(task, task.getName());
+            updateTaskViews();
         });
 
-        builder.setNegativeButton("Delete", (dialog, which) -> {
+        LinearLayout.LayoutParams checkBoxParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        checkBox.setLayoutParams(checkBoxParams);
+
+        taskLayout.addView(checkBox);
+
+        ImageButton editButton = new ImageButton(this);
+        editButton.setImageResource(R.drawable.pencil);
+        editButton.setBackgroundColor(0);
+        editButton.setOnClickListener(v -> showEditTaskDialog(task));
+        taskLayout.addView(editButton);
+
+        ImageButton deleteButton = new ImageButton(this);
+        deleteButton.setImageResource(R.drawable.delete);
+        deleteButton.setBackgroundColor(0);
+        deleteButton.setOnClickListener(v -> confirmDeleteTask(task));
+        taskLayout.addView(deleteButton);
+
+        return taskLayout;
+    }
+
+
+    private void confirmDeleteTask(Task task) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Confirm");
+        builder.setMessage("Delete this task?");
+
+        builder.setPositiveButton("Yes", (dialog, which) -> {
             deleteTask(task);
+            updateTaskViews();
         });
+
+        builder.setNegativeButton("Nope", (dialog, which) -> dialog.dismiss());
 
         AlertDialog dialog = builder.create();
         dialog.show();
     }
+
 
     private void showEditTaskDialog(Task task) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -178,8 +202,8 @@ public class MainActivity extends AppCompatActivity {
         builder.setPositiveButton("Save", (dialog, which) -> {
             String newTaskName = input.getText().toString().trim();
             if (!newTaskName.isEmpty()) {
-                dbHelper.updateTask(task, task.getName()); // Dùng tên cũ để cập nhật task
-                task.setName(newTaskName); // Cập nhật tên mới
+                dbHelper.updateTask(task, task.getName());
+                task.setName(newTaskName);
                 updateTaskViews();
             } else {
                 Toast.makeText(MainActivity.this, "Task name cannot be empty", Toast.LENGTH_SHORT).show();
